@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert' as json;
 
 void main() {
   runApp(const MoviesApp());
@@ -19,36 +21,47 @@ class MoviesApp extends StatelessWidget {
   }
 }
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
-  final List<Map<String, String>> movies = const [
-    {
-      'title': 'Oru Durooha Saahacharyathil',
-      'banner': 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=800',
-      'category': 'Featured'
-    },
-    {
-      'title': 'Stranger Things',
-      'banner': 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=500',
-      'category': 'Trending'
-    },
-    {
-      'title': 'The Dark Knight',
-      'banner': 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=500',
-      'category': 'Trending'
-    },
-    {
-      'title': 'Inception',
-      'banner': 'https://images.unsplash.com/photo-1517604931442-7e0c8ed2963c?w=500',
-      'category': 'Popular'
-    },
-    {
-      'title': 'Interstellar',
-      'banner': 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=500',
-      'category': 'Popular'
-    },
-  ];
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  final String apiKey = 'a07e22bc18f5cb106bfe4cc1f83ad8ed';
+  
+  List trendingMovies = [];
+  List popularMovies = [];
+  List topRatedMovies = [];
+  bool isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    fetchMovies();
+  }
+
+  Future<void> fetchMovies() async {
+    try {
+      final trendingRes = await http.get(Uri.parse('https://api.themoviedb.org/3/trending/movie/day?api_key=$apiKey'));
+      final popularRes = await http.get(Uri.parse('https://api.themoviedb.org/3/movie/popular?api_key=$apiKey'));
+      final topRatedRes = await http.get(Uri.parse('https://api.themoviedb.org/3/movie/top_rated?api_key=$apiKey'));
+
+      if (trendingRes.statusCode == 200) {
+        setState(() {
+          trendingMovies = json.jsonDecode(trendingRes.body)['results'];
+          popularMovies = json.jsonDecode(popularRes.body)['results'];
+          topRatedMovies = json.jsonDecode(topRatedRes.body)['results'];
+          isLoading = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        isLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -65,93 +78,111 @@ class HomeScreen extends StatelessWidget {
           const SizedBox(width: 12),
         ],
       ),
-      body: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Featured Banner
-            Stack(
-              alignment: Alignment.bottomCenter,
-              children: [
-                Image.network(
-                  movies[0]['banner']!,
-                  height: 350,
-                  width: double.infinity,
-                  fit: BoxFit.cover,
-                ),
-                Container(
-                  height: 350,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [Colors.transparent, Colors.black.withOpacity(0.9)],
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                    ),
-                  ),
-                ),
-                Positioned(
-                  bottom: 20,
-                  child: Column(
-                    children: [
-                      Text(movies[0]['title']!, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white)),
-                      const SizedBox(height: 10),
-                      ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(backgroundColor: Colors.white, foregroundColor: Colors.black),
-                        onPressed: () {},
-                        icon: const Icon(Icons.play_arrow),
-                        label: const Text('Play'),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 20),
-            
-            // Catalog Section
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16.0),
-              child: Text('Movies Bazar Catalog', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
-            ),
-            const SizedBox(height: 12),
-            
-            SizedBox(
-              height: 180,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                itemCount: movies.length,
-                itemBuilder: (context, index) {
-                  return Container(
-                    margin: const EdgeInsets.only(left: 16),
-                    width: 120,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+      body: isLoading
+          ? const Center(child: CircularProgressIndicator(color: Colors.red))
+          : SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (trendingMovies.isNotEmpty)
+                    Stack(
+                      alignment: Alignment.bottomCenter,
                       children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: Image.network(
-                            movies[index]['banner']!,
-                            height: 140,
-                            width: 120,
-                            fit: BoxFit.cover,
+                        Image.network(
+                          'https://image.tmdb.org/t/p/w500${trendingMovies[0]['poster_path']}',
+                          height: 380,
+                          width: double.infinity,
+                          fit: BoxFit.cover,
+                        ),
+                        Container(
+                          height: 380,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [Colors.transparent, Colors.black.withOpacity(0.9)],
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                            ),
                           ),
                         ),
-                        const SizedBox(height: 6),
-                        Text(
-                          movies[index]['title']!,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(color: Colors.white70, fontSize: 12),
+                        Positioned(
+                          bottom: 20,
+                          child: Column(
+                            children: [
+                              Text(
+                                trendingMovies[0]['title'] ?? '',
+                                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
+                                textAlign: TextAlign.center,
+                              ),
+                              const SizedBox(height: 10),
+                              ElevatedButton.icon(
+                                style: ElevatedButton.styleFrom(backgroundColor: Colors.white, foregroundColor: Colors.black),
+                                onPressed: () {},
+                                icon: const Icon(Icons.play_arrow),
+                                label: const Text('Play'),
+                              ),
+                            ],
+                          ),
                         ),
                       ],
                     ),
-                  );
-                },
+                  const SizedBox(height: 20),
+
+                  buildCategorySection('Trending Now', trendingMovies),
+                  buildCategorySection('Popular on Movies Bazar', popularMovies),
+                  buildCategorySection('Top Rated Movies', topRatedMovies),
+                ],
               ),
             ),
-          ],
+    );
+  }
+
+  Widget buildCategorySection(String title, List movies) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+          child: Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
         ),
-      ),
+        SizedBox(
+          height: 180,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            itemCount: movies.length,
+            itemBuilder: (context, index) {
+              final posterPath = movies[index]['poster_path'];
+              return Container(
+                margin: const EdgeInsets.only(left: 16),
+                width: 120,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: posterPath != null
+                          ? Image.network(
+                              'https://image.tmdb.org/t/p/w500$posterPath',
+                              height: 140,
+                              width: 120,
+                              fit: BoxFit.cover,
+                            )
+                          : Container(height: 140, color: Colors.grey[800]),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      movies[index]['title'] ?? '',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(color: Colors.white70, fontSize: 12),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 10),
+      ],
     );
   }
 }
