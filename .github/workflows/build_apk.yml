@@ -1,44 +1,195 @@
-name: Build Android APK
+import 'package:flutter/material.dart';
+import 'http' as http;
+import 'convert' as json;
 
-on:
-  push:
-    branches: [ "main" ]
+void main() {
+  runApp(const MoviesApp());
+}
 
-jobs:
-  build:
-    runs-on: ubuntu-latest
+class MoviesApp extends StatelessWidget {
+  const MoviesApp({super.key});
 
-    steps:
-    - uses: actions/checkout@v4
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData.dark().copyWith(
+        scaffoldBackgroundColor: Colors.black,
+      ),
+      home: const HomeScreen(),
+    );
+  }
+}
 
-    - name: Set up Java
-      uses: actions/setup-java@v4
-      with:
-        distribution: 'zulu'
-        java-version: '17'
+class HomeScreen extends StatefulWidget {
+  const HomeScreen({super.key});
 
-    - name: Set up Flutter
-      uses: subosito/flutter-action@v2
-      with:
-        flutter-version: '3.19.0'
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
 
-    - name: Re-create Full Flutter Project Structure
-      run: |
-        mkdir temp_app
-        cd temp_app
-        flutter create --org com.example movies_network_pro
-        cp -r movies_network_pro/android ../
-        cd ..
-        rm -rf temp_app
+class _HomeScreenState extends State<HomeScreen> {
+  // Demo TMDB API Key for fetching live catalog
+  final String apiKey = 'a07e22bc18f5cb106bfe4cc1f83ad8ed';
+  
+  List trendingMovies = [];
+  List popularMovies = [];
+  List topRatedMovies = [];
+  bool isLoading = true;
 
-    - name: Get dependencies
-      run: flutter pub get
+  @override
+  void initState() {
+    super.initState();
+    fetchMovies();
+  }
 
-    - name: Build APK
-      run: flutter build apk --release --no-tree-shake-icons
+  Future<void> fetchMovies() async {
+    try {
+      final trendingRes = await http.get(Uri.parse('https://api.themoviedb.org/3/trending/movie/day?api_key=$apiKey'));
+      final popularRes = await http.get(Uri.parse('https://api.themoviedb.org/3/movie/popular?api_key=$apiKey'));
+      final topRatedRes = await http.get(Uri.parse('https://api.themoviedb.org/3/movie/top_rated?api_key=$apiKey'));
 
-    - name: Upload APK Artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: Netflix-MoviesBazar-APK
-        path: build/app/outputs/flutter-apk/app-release.apk
+      if (trendingRes.statusCode == 200) {
+        setState(() {
+          trendingMovies = json.jsonDecode(trendingRes.body)['results'];
+          popularMovies = json.jsonDecode(popularRes.body)['results'];
+          topRatedMovies = json.jsonDecode(topRatedRes.body)['results'];
+          isLoading = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        isLoading = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        title: const Text('NETFLIX', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 24)),
+        actions: [
+          IconButton(icon: const Icon(Icons.search), onPressed: () {}),
+          const CircleAvatar(
+            backgroundColor: Colors.red,
+            child: Text('MB', style: TextStyle(color: Colors.white, fontSize: 12)),
+          ),
+          const SizedBox(width: 12),
+        ],
+      ),
+      body: isLoading
+          ? const Center(child: CircularProgressIndicator(color: Colors.red))
+          : SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Featured Banner
+                  if (trendingMovies.isNotEmpty)
+                    Stack(
+                      alignment: Alignment.bottomCenter,
+                      children: [
+                        Image.network(
+                          'https://image.tmdb.org/t/p/w500${trendingMovies[0]['poster_path']}',
+                          height: 380,
+                          width: double.infinity,
+                          fit: BoxFit.cover,
+                        ),
+                        Container(
+                          height: 380,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [Colors.transparent, Colors.black.withOpacity(0.9)],
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                            ),
+                          ),
+                        ),
+                        Positioned(
+                          bottom: 20,
+                          child: Column(
+                            children: [
+                              Text(
+                                trendingMovies[0]['title'] ?? '',
+                                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
+                                textAlign: TextAlign.center,
+                              ),
+                              const SizedBox(height: 10),
+                              ElevatedButton.icon(
+                                style: ElevatedButton.styleFrom(backgroundColor: Colors.white, foregroundColor: Colors.black),
+                                onPressed: () {},
+                                icon: const Icon(Icons.play_arrow),
+                                label: const Text('Play'),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  const SizedBox(height: 20),
+
+                  // Category 1: Trending
+                  buildCategorySection('Trending Now', trendingMovies),
+                  
+                  // Category 2: Popular
+                  buildCategorySection('Popular on Movies Bazar', popularMovies),
+
+                  // Category 3: Top Rated
+                  buildCategorySection('Top Rated Movies', topRatedMovies),
+                ],
+              ),
+            ),
+    );
+  }
+
+  Widget buildCategorySection(String title, List movies) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+          child: Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
+        ),
+        SizedBox(
+          height: 180,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            itemCount: movies.length,
+            itemBuilder: (context, index) {
+              final posterPath = movies[index]['poster_path'];
+              return Container(
+                margin: const EdgeInsets.only(left: 16),
+                width: 120,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: posterPath != null
+                          ? Image.network(
+                              'https://image.tmdb.org/t/p/w500$posterPath',
+                              height: 140,
+                              width: 120,
+                              fit: BoxFit.cover,
+                            )
+                          : Container(height: 140, color: Colors.grey[800]),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      movies[index]['title'] ?? '',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(color: Colors.white70, fontSize: 12),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 10),
+      ],
+    );
+  }
+}
