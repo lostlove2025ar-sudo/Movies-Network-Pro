@@ -22,11 +22,20 @@ jobs:
       with:
         flutter-version: '3.19.0'
 
+    - name: Re-create Full Flutter Project Structure
+      run: |
+        mkdir temp_app
+        cd temp_app
+        flutter create --org com.example movies_network_pro
+        cp -r movies_network_pro/android ../
+        cd ..
+        rm -rf temp_app
+
     - name: Get dependencies
       run: flutter pub get
 
     - name: Build APK
-      run: flutter build apk --release
+      run: flutter build apk --release --no-tree-shake-icons
 
     - name: Upload APK Artifact
       uses: actions/upload-artifact@v4
